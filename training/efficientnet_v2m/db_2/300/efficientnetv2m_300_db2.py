@@ -1,0 +1,223 @@
+import os
+import tensorflow as tf
+from tensorflow import keras
+from keras import layers, models, applications
+import numpy as np
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+import math
+
+%matplotlib inline
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+DATA_DIR = '/content/drive/MyDrive/data_2' 
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+IMG_SIZE = (300, 300) # Caso de teste para tamanho de imagem menor
+BATCH_SIZE = 16
+CHANNELS = 3
+
+EPOCHS_PRE_TRAIN = 20
+EPOCHS_FINE_TUNE = 30
+TOTAL_EPOCHS = EPOCHS_PRE_TRAIN + EPOCHS_FINE_TUNE
+
+LABEL_SMOOTHING = 0.1
+MIXUP_ALPHA = 0.2
+
+def one_hot(image, label, num_classes):
+    return image, tf.one_hot(label, num_classes)
+
+def mixup(image, label, alpha=MIXUP_ALPHA):
+    batch_size = tf.shape(image)[0]
+    idx = tf.random.shuffle(tf.range(batch_size))
+    lam = tf.random.uniform(shape=[], minval=0.0, maxval=alpha)
+    mixed_image = (1 - lam) * image + lam * tf.gather(image, idx)
+    mixed_label = (1 - lam) * label + lam * tf.gather(label, idx)
+    return mixed_image, mixed_label
+
+def load_and_prepare_dataset(data_dir, img_size, batch_size):
+    train_ds = tf.keras.utils.image_dataset_from_directory(
+        data_dir,
+        validation_split=0.3,
+        subset='training',
+        seed=123,
+        image_size=img_size,
+        batch_size=batch_size,
+        label_mode='int'
+    )
+    val_ds = tf.keras.utils.image_dataset_from_directory(
+        data_dir,
+        validation_split=0.3,
+        subset='validation',
+        seed=123,
+        image_size=img_size,
+        batch_size=batch_size,
+        label_mode='int'
+    )
+    class_names = train_ds.class_names
+    num_classes = len(class_names)
+    
+    def preprocess(image, label):
+        image = applications.efficientnet_v2.preprocess_input(image)
+        return one_hot(image, label, num_classes)
+
+    train_ds = train_ds.map(preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+    val_ds = val_ds.map(preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+    train_ds = train_ds.map(mixup, num_parallel_calls=tf.data.AUTOTUNE)
+    train_ds = train_ds.cache().shuffle(1024).prefetch(tf.data.AUTOTUNE)
+    val_ds = val_ds.cache().prefetch(tf.data.AUTOTUNE)
+
+    return train_ds, val_ds, class_names, num_classes
+
+def get_data_augmentation():
+    return models.Sequential([
+        layers.RandomFlip('horizontal_and_vertical'),
+        layers.RandomRotation(0.1),
+        layers.RandomZoom(0.3),
+        layers.RandomContrast(0.3),
+    ])
+
+def build_model(num_classes, img_size, channels):
+    base_model = applications.EfficientNetV2M(
+        include_top=False,
+        weights='imagenet',
+        input_shape=(*img_size, channels),
+        pooling='avg'
+    )
+    base_model.trainable = False
+    inputs = layers.Input(shape=(*img_size, channels))
+    x = get_data_augmentation()(inputs)
+    x = base_model(x, training=False)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.3)(x)
+    outputs = layers.Dense(num_classes, activation='softmax', kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
+    return models.Model(inputs, outputs), base_model
+
+class WarmupCosineDecay(keras.callbacks.Callback):
+    def __init__(self, total_steps, warmup_steps, initial_lr, final_lr):
+        super().__init__()
+        self.total_steps = total_steps
+        self.warmup_steps = warmup_steps
+        self.initial_lr = initial_lr
+        self.final_lr = final_lr
+        self.global_step = 0
+
+    def on_train_batch_begin(self, batch, logs=None):
+        self.global_step += 1
+        if self.global_step < self.warmup_steps:
+            lr = self.initial_lr * (self.global_step / self.warmup_steps)
+        else:
+            cosine_decay = 0.5 * (1 + math.cos(math.pi * (self.global_step - self.warmup_steps) / (self.total_steps - self.warmup_steps)))
+            lr = self.final_lr + (self.initial_lr - self.final_lr) * cosine_decay
+        self.model.optimizer.learning_rate.assign(lr)
+
+def plot_history(history, title_prefix):
+    """Plota as métricas de acurácia e loss do treinamento."""
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    epochs_range = range(len(acc))
+
+    plt.figure(figsize=(12, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, acc, label='Acurácia do Treinamento')
+    plt.plot(epochs_range, val_acc, label='Acurácia da Validação')
+    plt.legend(loc='lower right')
+    plt.title(f'{title_prefix} - Acurácia')
+    plt.xlabel('Épocas')
+    plt.ylabel('Acurácia')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss, label='Loss do Treinamento')
+    plt.plot(epochs_range, val_loss, label='Loss da Validação')
+    plt.legend(loc='upper right')
+    plt.title(f'{title_prefix} - Loss)')
+    plt.xlabel('Épocas')
+    plt.ylabel('Loss')
+
+    plt.suptitle(title_prefix, fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show()
+
+def evaluate_model(model, val_ds, class_names):
+    y_true, y_pred = [], []
+    for images, labels in val_ds:
+        preds = model.predict(images)
+        y_true.extend(np.argmax(labels.numpy(), axis=1))
+        y_pred.extend(np.argmax(preds, axis=1))
+    print(classification_report(y_true, y_pred, target_names=class_names, digits=4))
+    cm = confusion_matrix(y_true, y_pred)
+    disp = ConfusionMatrixDisplay(cm, display_labels=class_names)
+    disp.plot(cmap=plt.cm.Blues, xticks_rotation=45)
+    plt.title("Matriz de Confusão")
+    plt.tight_layout()
+    plt.show()
+
+def combine_histories(history1, history2):
+    combined = {}
+    for key in history1.history:
+        combined[key] = history1.history[key] + history2.history.get(key, [])
+
+    return combined
+
+# Execução principal
+train_ds, val_ds, class_names, num_classes = load_and_prepare_dataset(DATA_DIR, IMG_SIZE, BATCH_SIZE)
+model, base_model = build_model(num_classes, IMG_SIZE, CHANNELS)
+steps_per_epoch = len(train_ds)
+total_steps = steps_per_epoch * TOTAL_EPOCHS
+warmup_steps = steps_per_epoch * 5
+
+lr_scheduler_cb = WarmupCosineDecay(total_steps, warmup_steps, 1e-3, 1e-6)
+
+model.compile(
+    optimizer=tf.keras.optimizers.AdamW(weight_decay=1e-4),
+    loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=LABEL_SMOOTHING),
+    metrics=['accuracy']
+)
+
+history_pre = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=EPOCHS_PRE_TRAIN,
+    callbacks=[lr_scheduler_cb]
+)
+
+# Fine-tuning
+base_model.trainable = True
+fine_tune_at = len(base_model.layers) - 60
+for layer in base_model.layers[:fine_tune_at]:
+    layer.trainable = False
+
+model.compile(
+    optimizer=tf.keras.optimizers.AdamW(weight_decay=1e-4),
+    loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=LABEL_SMOOTHING),
+    metrics=['accuracy']
+)
+
+history_fine = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=TOTAL_EPOCHS,
+    initial_epoch=history_pre.epoch[-1] + 1,
+    callbacks=[
+        lr_scheduler_cb,
+        keras.callbacks.EarlyStopping(monitor='val_accuracy', patience=6, restore_best_weights=True),
+        keras.callbacks.ModelCheckpoint('/content/drive/MyDrive/saved_models/efficientnetv2m_db2_300_corn_classifier.keras', monitor='val_accuracy', save_best_only=True, mode='max')
+    ]
+)
+
+evaluate_model(model, val_ds, class_names)
+combined_history = combine_histories(history_pre, history_fine)
+
+class DummyHistory:
+    def __init__(self, history_dict):
+        self.history = history_dict
+
+plot_history(DummyHistory(combined_history), 'Treinamento Completo - EfficientNetV2M')

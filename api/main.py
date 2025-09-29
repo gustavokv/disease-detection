@@ -16,9 +16,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODEL = tf.keras.models.load_model('../saved_models/dataset_1/v1/v1.4/efficientnetv2m_corn_classifier_v1_4.keras')
-CLASS_NAMES = ["Blight", "Common_Rust", "Gray_Leaf_Spot", "Healthy"]
-#CLASS_NAMES = ["Gray Leaf Spot", "Northern Leaf Blight", "Northern Leaf Spot"]
+MODEL = tf.keras.models.load_model('../saved_models/efficientnetv2m_db2_480_corn_classifier.keras')
+#CLASS_NAMES = ["Blight", "Common_Rust", "Gray_Leaf_Spot", "Healthy"]
+CLASS_NAMES = ["Gray Leaf Spot", "Northern Leaf Blight", "Northern Leaf Spot"]
 
 def read_file_as_image(data) -> np.ndarray:
     img = np.array(Image.open(BytesIO(data)))
