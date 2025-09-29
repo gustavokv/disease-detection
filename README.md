@@ -41,10 +41,8 @@ A viabilidade da solução foi demonstrada através de uma aplicação web inter
 
 | Tela Inicial | Resultado da Classificação |
 | :---: | :---: |
-| ![Tela Inicial da Aplicação](.github/assets/front_end.jpg) | ![Tela de Resultado](.github/assets/Screenshot_1.jpg) |
+| ![Tela Inicial da Aplicação](.github/assets/page1.png) | ![Tela de Resultado](.github/assets/page2.png) |
 | *O usuário pode arrastar ou clicar para selecionar uma imagem.* | *O modelo classifica a doença e exibe a confiança da predição.* |
-
-**ATENÇÃO:** Para que as imagens apareçam, crie uma pasta `.github/assets/` na raiz do seu projeto, coloque os arquivos `front_end.jpg` e `Screenshot_1.jpg` dentro dela e faça o commit.
 
 ---
 
@@ -100,10 +98,12 @@ Siga os passos abaixo para executar a aplicação completa em seu ambiente local
 ```bash
 git clone [https://github.com/gustavokv/SEU-REPOSITORIO.git](https://github.com/gustavokv/SEU-REPOSITORIO.git)
 cd SEU-REPOSITORIO
+```
 
 ### 2. Executar o Backend (API)
 Abra um terminal na pasta raiz do projeto.
 
+```bash
 # Navegue até a pasta da API
 cd api
 
@@ -118,11 +118,13 @@ pip install -r requirements.txt
 
 # Inicie o servidor da API
 python main.py
-
+```
 O servidor FastAPI estará rodando em http://127.0.0.1:8000.
 
 ### 3. Executar o Frontend
 Abra um novo terminal na pasta raiz do projeto.
+
+```bash
 
 # Navegue até a pasta do frontend
 cd frontend
@@ -132,6 +134,8 @@ npm install
 
 # Inicie a aplicação de desenvolvimento
 npm run dev
+
+```
 
 A aplicação React estará acessível em seu navegador no endereço http://localhost:5173.
 
