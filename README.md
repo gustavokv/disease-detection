@@ -96,8 +96,8 @@ Siga os passos abaixo para executar a aplicação completa em seu ambiente local
 ### 1. Clonar o Repositório
 
 ```bash
-git clone [https://github.com/gustavokv/SEU-REPOSITORIO.git](https://github.com/gustavokv/SEU-REPOSITORIO.git)
-cd SEU-REPOSITORIO
+git clone [https://github.com/gustavokv/disease-detection.git](https://github.com/gustavokv/disease-detection.git)
+cd disease-detection
 ```
 
 ### 2. Executar o Backend (API)
