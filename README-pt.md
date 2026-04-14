@@ -1,3 +1,5 @@
+[🇺🇸 Read in English](README-en.md)
+
 # Classificador de Doenças Foliares no Milho utilizando Deep Learning
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -90,7 +92,7 @@ Siga os passos abaixo para executar a aplicação completa em seu ambiente local
 ### Pré-requisitos
 
 - **Git:** Para clonar o repositório.
-- **Python:** Versão `3.12.6` ou superior.
+- **Python:** Versão `3.12.6` (Deve ser esta versão por conflitos com o Tensorflow).
 - **Node.js:** Versão `v20.18.1` ou superior (inclui `npm` `10.8.2` ou superior).
 
 ### 1. Clonar o Repositório
