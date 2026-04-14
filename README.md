@@ -90,7 +90,7 @@ Siga os passos abaixo para executar a aplicação completa em seu ambiente local
 ### Pré-requisitos
 
 - **Git:** Para clonar o repositório.
-- **Python:** Versão `3.12.6` ou superior.
+- **Python:** Versão `3.12.6` (Importante que seja esta versão devido ao Tensorflow).
 - **Node.js:** Versão `v20.18.1` ou superior (inclui `npm` `10.8.2` ou superior).
 
 ### 1. Clonar o Repositório
